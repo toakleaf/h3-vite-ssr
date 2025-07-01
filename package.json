@@ -1,0 +1,40 @@
+{
+  "name": "h3-vite-ssr",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx server/index.ts",
+    "dev:log": "ENABLE_LOGGING=true tsx server/index.ts",
+    "build": "tsc -b && tsx scripts/build.ts",
+    "start": "NODE_ENV=production node .output/server/index.js",
+    "start:log": "NODE_ENV=production ENABLE_LOGGING=true node .output/server/index.js",
+    "lint": "eslint .",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@types/node": "^24.0.8",
+    "compression": "^1.8.0",
+    "h3": "^1.15.3",
+    "listhen": "^1.9.0",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0",
+    "serve-static": "^2.2.0"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.29.0",
+    "@types/compression": "^1.8.1",
+    "@types/react": "^19.1.8",
+    "@types/react-dom": "^19.1.6",
+    "@types/serve-static": "^1.15.8",
+    "@vitejs/plugin-react-swc": "^3.10.2",
+    "eslint": "^9.29.0",
+    "eslint-plugin-react-hooks": "^5.2.0",
+    "eslint-plugin-react-refresh": "^0.4.20",
+    "globals": "^16.2.0",
+    "tsx": "^4.20.3",
+    "typescript": "~5.8.3",
+    "typescript-eslint": "^8.34.1",
+    "vite": "^5.4.0"
+  }
+}
