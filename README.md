@@ -50,8 +50,7 @@ ENABLE_LOGGING=true pnpm start
 │   │   └── DynamicButton.module.css   # CSS module (chunked separately)
 │   ├── App.tsx                        # Main React app
 │   ├── entry-client.tsx               # Client hydration entry
-│   ├── entry-server.tsx               # SSR entry
-│   └── main.tsx                       # Original Vite entry (unused in SSR)
+│   └── entry-server.tsx               # SSR entry
 ├── server/
 │   ├── index.ts                       # Server entry point
 │   ├── app.ts                         # App creation & middleware setup
@@ -128,7 +127,6 @@ graph LR
 
 - **`src/entry-server.tsx`** - SSR entry, exports `render()` function
 - **`src/entry-client.tsx`** - Client hydration entry with CSS imports
-- **`src/main.tsx`** - Original Vite entry (not used in SSR setup)
 
 ### 3. **Code Splitting Magic**
 
