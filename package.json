@@ -6,7 +6,10 @@
   "scripts": {
     "dev": "tsx server/index.ts",
     "dev:log": "ENABLE_LOGGING=true tsx server/index.ts",
-    "build": "tsc -b && tsx scripts/build.ts",
+    "build:client": "vite build",
+    "build:ssr": "vite build --ssr src/entry-server.tsx --outDir .output/server",
+    "build:runtime": "vite build --mode server-runtime",
+    "build": "tsc -b && pnpm run build:client && pnpm run build:ssr && pnpm run build:runtime",
     "start": "NODE_ENV=production node .output/server/index.js",
     "start:log": "NODE_ENV=production ENABLE_LOGGING=true node .output/server/index.js",
     "lint": "eslint .",
@@ -19,7 +22,8 @@
     "listhen": "^1.9.0",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
-    "serve-static": "^2.2.0"
+    "serve-static": "^2.2.0",
+    "yaml": "^2.6.0"
   },
   "devDependencies": {
     "@eslint/js": "^9.29.0",

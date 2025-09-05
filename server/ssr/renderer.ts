@@ -3,31 +3,35 @@ import { H3Event } from 'h3'
 import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { getScriptsFromManifest, getStylesFromManifest } from '../utils/manifest.js'
+import { resolveComponentPathFromUrl, getServerEntryDevPath, getServerEntryProdPath } from '../utils/entries.js'
+import type { ViteDevServer } from 'vite'
+import type { ReactElement } from 'react'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const isProd = process.env.NODE_ENV === 'production'
-// In production, the compiled code is in .output/server/index.js, so we need to go up 2 levels
-const root = isProd ? path.resolve(__dirname, '../..') : path.resolve(__dirname, '../..')
+const root = path.resolve(__dirname, '../..')
 
-export async function renderSSR(event: H3Event, vite?: any) {
+type SSRRenderFn = (componentModulePath?: string) => ReactElement
+export async function renderSSR(event: H3Event, vite?: ViteDevServer) {
   const url = event.node.req.url!
   
   try {
     let template: string
-    let render: any
+    let render: SSRRenderFn
     
     if (!isProd) {
+      if (!vite) throw new Error('Vite dev server not provided')
       template = fs.readFileSync(path.resolve(root, 'index.html'), 'utf-8')
       template = await vite.transformIndexHtml(url, template)
-      render = (await vite.ssrLoadModule('/src/entry-server.tsx')).render
+      // Use Vite's ssrLoadModule in dev for reliability
+      const mod = await vite.ssrLoadModule(getServerEntryDevPath())
+      render = (mod as { renderWithComponent: SSRRenderFn }).renderWithComponent
     } else {
+      // Use built client template with correct asset links
       template = fs.readFileSync(path.resolve(root, '.output/client/index.html'), 'utf-8')
-      render = (await import(path.resolve(root, '.output/server/entry-server.js'))).render
+      const mod = await import(getServerEntryProdPath())
+      render = (mod as { renderWithComponent: SSRRenderFn }).renderWithComponent
     }
-    
-    const scripts = isProd ? getScriptsFromManifest() : []
-    const styles = isProd ? getStylesFromManifest() : []
     
     const htmlStart = template.substring(0, template.indexOf('<!--app-html-->'))
     const htmlEnd = template.substring(template.indexOf('<!--app-html-->') + '<!--app-html-->'.length)
@@ -35,15 +39,14 @@ export async function renderSSR(event: H3Event, vite?: any) {
     event.node.res.setHeader('Content-Type', 'text/html')
     event.node.res.write(htmlStart)
     
-    if (isProd) {
-      styles.forEach(style => {
-        event.node.res.write(`<link rel="stylesheet" href="${style}">`)
-      })
-    }
+    // In production, CSS and JS are already referenced by the built template
+
+    // Choose component module path based on URL and frontier.config.yaml
+    const componentModulePath = resolveComponentPathFromUrl(url)
+    const dataAttr = componentModulePath ? ` data-component="${componentModulePath}"` : ''
+    event.node.res.write(`<div id="root"${dataAttr}>`)
     
-    event.node.res.write('<div id="root">')
-    
-    const app = await render(url)
+    const app = await render(componentModulePath)
     
     await new Promise<void>((resolve, reject) => {
       const { pipe, abort } = renderToPipeableStream(
@@ -57,14 +60,6 @@ export async function renderSSR(event: H3Event, vite?: any) {
           },
           onAllReady() {
             event.node.res.write('</div>')
-            if (!isProd) {
-              event.node.res.write('<script type="module" src="/@vite/client"></script>')
-              event.node.res.write('<script type="module" src="/src/entry-client.tsx"></script>')
-            } else {
-              scripts.forEach(script => {
-                event.node.res.write(`<script type="module" src="${script}"></script>`)
-              })
-            }
             event.node.res.end(htmlEnd)
             resolve()
           },
@@ -79,12 +74,12 @@ export async function renderSSR(event: H3Event, vite?: any) {
       })
     })
     
-  } catch (e: any) {
-    if (!isProd) {
-      vite.ssrFixStacktrace(e)
+  } catch (error: unknown) {
+    if (!isProd && vite) {
+      vite.ssrFixStacktrace?.(error as Error)
     }
-    console.error(e)
+    console.error(error)
     event.node.res.statusCode = 500
-    event.node.res.end(e.message)
+    event.node.res.end(error instanceof Error ? error.message : 'Internal Server Error')
   }
 }

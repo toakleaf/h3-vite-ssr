@@ -1,0 +1,62 @@
+.button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  border: 0;
+  border-radius: 10px;
+  color: #1a1a1a;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  cursor: pointer;
+  user-select: none;
+  -webkit-user-select: none;
+  touch-action: manipulation;
+  transition: transform 0.15s ease, box-shadow 0.25s ease, opacity 0.2s ease;
+  background: linear-gradient(135deg, #ffb457 0%, #ff8a35 35%, #ff6a1a 65%, #ff4b1f 100%);
+  box-shadow: 0 6px 18px rgba(255, 107, 0, 0.35), inset 0 -1px 0 rgba(255, 255, 255, 0.2);
+}
+
+.button:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 10px 22px rgba(255, 107, 0, 0.45), inset 0 -1px 0 rgba(255, 255, 255, 0.25);
+}
+
+.button:active:not(:disabled) {
+  transform: translateY(0);
+  box-shadow: 0 6px 16px rgba(255, 107, 0, 0.35) inset;
+}
+
+.button:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 4px rgba(255, 107, 0, 0.25), 0 8px 20px rgba(255, 107, 0, 0.35);
+}
+
+.button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* Sizes */
+.sm {
+  padding: 0.45rem 0.9rem;
+  font-size: 0.875rem;
+  border-radius: 8px;
+}
+
+.md {
+  padding: 0.65rem 1.1rem;
+  font-size: 1rem;
+}
+
+.lg {
+  padding: 0.9rem 1.4rem;
+  font-size: 1.125rem;
+  border-radius: 12px;
+}
+
+.fullWidth {
+  width: 100%;
+}
+
+

@@ -1,4 +1,5 @@
 import { useState, Suspense, lazy } from 'react'
+import { OverloadButton } from './components/OverloadButton'
 import reactLogo from './assets/react.svg'
 import viteLogo from '/vite.svg'
 import './App.css'
@@ -31,6 +32,8 @@ function App() {
           {showDynamic ? 'Hide' : 'Load'} Dynamic Component
         </button>
       </div>
+      
+      <OverloadButton />
       
       {showDynamic && (
         <Suspense fallback={<div>Loading dynamic component...</div>}>

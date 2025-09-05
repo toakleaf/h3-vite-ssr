@@ -1,5 +1,5 @@
 import { createApp, defineEventHandler } from 'h3'
-import { createServer as createViteServer } from 'vite'
+import type { ViteDevServer } from 'vite'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { createLoggingMiddleware } from './middleware/logging.js'
@@ -20,9 +20,10 @@ export async function createSSRApp() {
     app.use(createLoggingMiddleware())
   }
   
-  let vite: any
+  let vite: ViteDevServer | undefined
   
   if (!isProd) {
+    const { createServer: createViteServer } = await import('vite')
     vite = await createViteServer({
       server: { middlewareMode: true },
       appType: 'custom'

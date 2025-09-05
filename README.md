@@ -1,6 +1,6 @@
 # H3 + Vite SSR
 
-A modern React Server-Side Rendering (SSR) foundation built with [H3](https://github.com/unjs/h3) and [Vite](https://vitejs.dev/). This project provides a clean, production-ready setup with code splitting, CSS modules, and optimized builds.
+A modern React Server-Side Rendering (SSR) foundation built with [H3](https://github.com/unjs/h3) and [Vite](https://vite.dev/). This project provides a clean, production-ready setup with code splitting, CSS modules, and optimized builds.
 
 ## ✨ Features
 
@@ -14,6 +14,8 @@ A modern React Server-Side Rendering (SSR) foundation built with [H3](https://gi
 - 🏗️ **Modular Architecture** - clean separation of concerns
 - 🔄 **Hot Module Replacement** in development
 - 📱 **Production Optimized** builds
+ - 🔌 **Native Vite SSR integration** (dev uses `ssrLoadModule`; prod uses built `index.html`)
+ - 🧩 **Vite Environments API ready** (used in config; optional for future expansion)
 
 ## 🚀 Quick Start
 
@@ -48,9 +50,12 @@ ENABLE_LOGGING=true pnpm start
 │   ├── components/
 │   │   ├── DynamicButton.tsx          # Dynamically imported component
 │   │   └── DynamicButton.module.css   # CSS module (chunked separately)
-│   ├── App.tsx                        # Main React app
+│   ├── entries/
+│   │   └── admin/
+│   │       └── AdminApp.tsx           # Example per-route component mounted at /admin
+│   ├── App.tsx                        # Main React app (default)
 │   ├── entry-client.tsx               # Client hydration entry
-│   └── entry-server.tsx               # SSR entry
+│   └── entry-server.tsx               # SSR entry (loaded in dev/prod)
 ├── server/
 │   ├── index.ts                       # Server entry point
 │   ├── app.ts                         # App creation & middleware setup
@@ -60,10 +65,13 @@ ENABLE_LOGGING=true pnpm start
 │   ├── ssr/
 │   │   └── renderer.ts                # SSR rendering logic
 │   └── utils/
-│       └── manifest.ts                # Vite manifest parsing
-├── scripts/
-│   └── build.ts                       # Production build script
-└── index.html                         # HTML template
+│       └── entries.ts                 # URL → component mapping from frontier config
+├── plugins/
+│   └── get-frontier-entrypoints.ts    # Vite virtual module for dynamic imports (optional)
+├── frontier.config.yaml               # Declares available component entrypoints
+├── index.html                         # HTML template (dev) → emits .output/client/index.html (prod)
+├── vite.config.ts                     # Vite config (environments + SSR)
+└── package.json
 ```
 
 ## 🔄 How It Works
@@ -103,14 +111,14 @@ graph LR
 ```
 
 **Build Process:**
-1. **Client build** → Optimized JS/CSS chunks in `.output/client/`
-2. **Server build** → SSR bundle in `.output/server/`
-3. **Asset manifest** → Maps chunks for production loading
+1. **Client build** → Optimized JS/CSS chunks and `index.html` in `.output/client/`
+2. **Server build** → SSR entry bundle in `.output/server/entry-server.js`
+3. **Runtime server build** → h3 server at `.output/server/index.js`
 
 **Runtime:**
-1. **Static assets** served with compression
-2. **SSR rendering** with optimized React bundle
-3. **Chunked loading** - React, main app, and dynamic components load separately
+1. **Static assets** served from `.output/client` with compression
+2. **SSR rendering** imports `.output/server/entry-server.js`
+3. **Asset links** come from built `.output/client/index.html` (no manual injection)
 
 ## 🏗️ Critical Architecture Pieces
 
@@ -142,12 +150,9 @@ The build automatically creates separate chunks:
 └── DynamicButton-[hash].css # Dynamic component styles (0.9kb)
 ```
 
-### 4. **Manifest Integration**
+### 4. **Asset Handling**
 
-`server/utils/manifest.ts` reads Vite's build manifest to:
-- Load dependencies in correct order (React → Main → Dynamic)
-- Inject CSS links for styled components
-- Enable proper caching with hashed filenames
+In production, the server reads `.output/client/index.html` as the template. Asset and CSS links are already included by Vite. No custom manifest parsing or manual injection is needed. The SSR manifest is still emitted and can be used later for advanced preload directives if desired.
 
 ## 🎯 Key Commands
 
@@ -155,26 +160,19 @@ The build automatically creates separate chunks:
 |---------|-------------|-------------|
 | `pnpm dev` | Development | Vite dev server with SSR + HMR |
 | `pnpm dev:log` | Development | Same as above with request logging |
-| `pnpm build` | Build | Creates optimized production bundles |
+| `pnpm build` | Build | Builds client, SSR entry, and server runtime |
 | `pnpm start` | Production | Runs production server from `.output/` |
 | `pnpm start:log` | Production | Same as above with request logging |
 
 ## 🚦 Production Deployment
 
-The `.output/` directory is completely self-contained:
+After `pnpm build`, deploy the project with:
 
 ```bash
-# After building
-cd .output
-pnpm install --prod
-PORT=3000 node server/index.js
-```
-
-Or use the scripts:
-```bash
-pnpm build
 PORT=8080 pnpm start
 ```
+
+This runs `.output/server/index.js`, which serves static files from `.output/client` and uses `.output/server/entry-server.js` for SSR.
 
 ## 🔧 Configuration
 
@@ -188,7 +186,7 @@ PORT=8080 pnpm start
 
 - **Add middleware:** Modify `server/app.ts`
 - **Change SSR logic:** Edit `server/ssr/renderer.ts`
-- **Adjust build:** Update `scripts/build.ts` or `vite.config.ts`
+- **Adjust build:** Update `vite.config.ts`
 - **Add routes:** Extend the `*` handler in `server/app.ts`
 
 ## 🤔 Why This Stack?
@@ -204,7 +202,8 @@ This combination provides the performance of custom SSR with the developer exper
 ## 📚 Learn More
 
 - [H3 Documentation](https://h3.unjs.io/)
-- [Vite SSR Guide](https://vitejs.dev/guide/ssr.html)
+- [Vite SSR Guide](https://vite.dev/guide/ssr)
+- [Vite Environment API](https://vite.dev/guide/api-environment.html#environment-api)
 - [React 18+ SSR](https://react.dev/reference/react-dom/server)
 - [CSS Modules](https://github.com/css-modules/css-modules)
 
