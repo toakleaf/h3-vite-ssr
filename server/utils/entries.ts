@@ -29,12 +29,21 @@ export function listAvailableEntries(): string[] {
 export function resolveEntryNameFromUrl(url: string): string {
   try {
     const pathname = new URL(url, 'http://localhost').pathname
-    const first = pathname.split('/').filter(Boolean)[0]
+    const segments = pathname.split('/').filter(Boolean)
     const entries = listAvailableEntries()
+    if (segments.length === 0) {
+      // root path → default entry (first configured)
+      const config = readFrontierConfig()
+      if (config && Array.isArray(config.entrypoints) && config.entrypoints.length > 0) {
+        return deriveRouteSegmentFromPath(config.entrypoints[0])
+      }
+      return ''
+    }
+    const first = segments[0]
     if (first && entries.includes(first)) return first
-    return 'main'
+    return ''
   } catch {
-    return 'main'
+    return ''
   }
 }
 
@@ -78,13 +87,18 @@ export function resolveComponentPathFromUrl(url: string): string | undefined {
   if (!config || !Array.isArray(config.entrypoints) || config.entrypoints.length === 0) return undefined
   try {
     const pathname = new URL(url, 'http://localhost').pathname
-    const first = pathname.split('/').filter(Boolean)[0]
-    if (!first) return undefined
+    const segments = pathname.split('/').filter(Boolean)
+    // Root path → default entry: first configured entrypoint
+    if (segments.length === 0) {
+      return normalizeComponentPath(config.entrypoints[0])
+    }
+    const first = segments[0]
     for (const raw of config.entrypoints) {
       if (deriveRouteSegmentFromPath(raw) === first) {
         return normalizeComponentPath(raw)
       }
     }
+    // Unknown route → undefined (will render Not Found)
     return undefined
   } catch {
     return undefined

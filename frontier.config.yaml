@@ -1,3 +1,4 @@
 name: Demo_Entries
 entrypoints:
+  - src/App.tsx
   - src/entries/admin/AdminApp.tsx
