@@ -2,6 +2,7 @@ import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react-swc'
 import path from 'node:path'
 import { getFrontierEntrypoints } from './plugins/get-frontier-entrypoints'
+import { brandOverrides } from './plugins/brand-overrides'
 
 export default defineConfig(({ mode }) => {
   if (mode === 'server-runtime') {
@@ -26,7 +27,7 @@ export default defineConfig(({ mode }) => {
     }
   }
   return {
-    plugins: [react(), getFrontierEntrypoints()],
+    plugins: [brandOverrides(), react(), getFrontierEntrypoints()],
     optimizeDeps: {
       include: ['react', 'react-dom']
     },
@@ -36,7 +37,14 @@ export default defineConfig(({ mode }) => {
         build: {
           outDir: '.output/client',
           manifest: true,
-          ssrManifest: true
+          ssrManifest: true,
+          rollupOptions: {
+            input: {
+              main: '/src/entry-client.tsx',
+              // brand-specific client entries (virtual)
+              'brand-purple': '/src/__brand__/purple/entry-client.ts'
+            }
+          }
         }
       },
       ssr: {
@@ -44,7 +52,11 @@ export default defineConfig(({ mode }) => {
           outDir: '.output/server',
           ssr: true,
           rollupOptions: {
-            input: '/src/entry-server.tsx'
+            // Also build separate SSR entries per brand for static import resolution
+            input: {
+              'entry-server': '/src/entry-server.tsx',
+              'entry-server-purple': '/src/entry-server.tsx?brand=purple'
+            }
           }
         }
       }

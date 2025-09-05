@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { OverloadButton } from '../../components/OverloadButton'
+import { NothingSpecial } from '../../components/NothingSpecial'
 
 export default function AdminApp() {
   const [count, setCount] = useState(0)
@@ -9,6 +10,7 @@ export default function AdminApp() {
       <p>This is a separate entrypoint mounted at /admin</p>
       <button onClick={() => setCount((c) => c + 1)}>Clicks: {count}</button>
       <OverloadButton />
+      <NothingSpecial />
     </div>
   )
 }

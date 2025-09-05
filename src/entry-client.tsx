@@ -7,14 +7,12 @@ async function mount() {
   const root = document.getElementById('root')!
   const componentPath = (root.getAttribute('data-component') || '')
   if (!componentPath) {
-    const { default: App } = await import('./App')
-    hydrateRoot(root, <App />)
+    hydrateRoot(root, <div>Not Found</div>)
     return
   }
   const loader = componentPath ? (componentLoaders as Record<string, () => Promise<unknown>>)[componentPath] : undefined
   if (!loader) {
-    const { default: App } = await import('./App')
-    hydrateRoot(root, <App />)
+    hydrateRoot(root, <div>Not Found</div>)
     return
   }
   const mod = (await loader()) as { default?: React.ComponentType; App?: React.ComponentType; Component?: React.ComponentType }
