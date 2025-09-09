@@ -43,6 +43,25 @@ function computeOverlayPath(resolvedFile: string, brand: BrandName, root: string
   return path.join(parsed.dir, 'brands', brand, parsed.base)
 }
 
+function isStyleFile(id: string): boolean {
+  const p = stripQuery(id).toLowerCase()
+  return p.endsWith('.css') || p.endsWith('.less') || p.endsWith('.scss') || p.endsWith('.sass') || p.endsWith('.styl')
+}
+
+function isCssModuleFile(id: string): boolean {
+  const p = stripQuery(id).toLowerCase()
+  return p.includes('.module.') && isStyleFile(p)
+}
+
+function computeBasePathFromOverlay(resolvedFile: string, brand: BrandName, root: string): string | undefined {
+  const abs = toProjectFsPath(resolvedFile, root)
+  const parsed = path.parse(abs)
+  const brandsSegment = path.sep + 'brands' + path.sep + brand
+  if (!parsed.dir.includes(brandsSegment + path.sep)) return undefined
+  const dirWithoutBrand = parsed.dir.replace(brandsSegment, '')
+  return path.join(dirWithoutBrand, parsed.base)
+}
+
 // Reserved for potential future use
 // function appendBrandQuery(id: string, brand: BrandName): string {
 //   const q = id.includes('?') ? '&' : '?'
@@ -90,9 +109,15 @@ export function brandOverrides(): Plugin {
 
   function getBrandForImporter(importer: string | undefined): BrandName | undefined {
     if (!importer) return undefined
-    // Only explicit query on importer id (set from entry-client?brand=...)
+    // 1) explicit query on importer id (entry-client?brand=...)
     const fromQuery = tryGetBrandFromId(importer)
     if (fromQuery) return fromQuery
+    // 2) infer from path segment /brands/<brand>/ for overlay importers
+    const importerPath = stripQuery(normalizeFsPath(importer))
+    for (const b of knownBrands) {
+      const seg = path.sep + 'brands' + path.sep + b + path.sep
+      if (importerPath.includes(seg)) return b
+    }
     return undefined
   }
 
@@ -168,6 +193,9 @@ export function brandOverrides(): Plugin {
           return 'virtual:frontier?brand=' + encodeURIComponent(b)
         }
       }
+
+      // Skip if we already injected a style bridge guard
+      if (source.includes('__brand_injected=1')) return null
       // Do not intercept virtual modules like 'virtual:frontier';
       // let the dedicated virtual plugin handle them
       // Virtual brand client entries: /src/__brand__/<brand>/entry-client.ts
@@ -176,19 +204,9 @@ export function brandOverrides(): Plugin {
         const b = brandEntryMatch[1]
         if (knownBrands.has(b)) return source
       }
-      // If the id itself explicitly carries a brand, record it and let normal resolution happen
-      const idBrand = tryGetBrandFromId(source)
-      if (idBrand && knownBrands.has(idBrand)) {
-        const resolved = await this.resolve(source, importer, { skipSelf: true, ...options })
-        if (!resolved) return null
-        const idNoQuery = stripQuery(resolved.id)
-        if (!idNoQuery.startsWith('\0') && !idNoQuery.startsWith('virtual:') && isInsideSrc(resolved.id, config.root)) {
-          return resolved.id + (resolved.id.includes('?') ? '&' : '?') + '__brand=' + encodeURIComponent(idBrand)
-        }
-        return resolved
-      }
-
-      const brand = getBrandForImporter(importer)
+      // Determine brand from explicit query on the import or from importer context
+      const explicitBrand = tryGetBrandFromId(source)
+      const brand = (explicitBrand && knownBrands.has(explicitBrand)) ? explicitBrand : getBrandForImporter(importer)
       if (!brand || !knownBrands.has(brand)) return null
 
       // Delegate to default resolution first
@@ -202,24 +220,41 @@ export function brandOverrides(): Plugin {
       // Only brand-swap modules under src
       if (!isInsideSrc(resolved.id, config.root)) return resolved
 
-      // Compute overlay path and return it if it exists
+      // Compute overlay path
       const candidate = computeOverlayPath(resolved.id, brand, config.root)
-      if (candidate !== stripQuery(resolved.id) && fs.existsSync(candidate)) {
-        const resolvedOverlay = await this.resolve(candidate, importer, { skipSelf: true, ...options })
-        if (resolvedOverlay) {
-          const idNoQuery = stripQuery(resolvedOverlay.id)
-          if (!idNoQuery.startsWith('\0') && !idNoQuery.startsWith('virtual:')) {
-            return resolvedOverlay.id + (resolvedOverlay.id.includes('?') ? '&' : '?') + '__brand=' + encodeURIComponent(brand)
+      if (fs.existsSync(candidate)) {
+        // Two cases for additive styles:
+        // 1) Import currently resolves to base style and overlay exists → bridge(base, overlay)
+        // 2) Import currently resolves to overlay style (already under /brands/<brand>/) → bridge(base-from-overlay, overlay)
+        if (isStyleFile(resolved.id)) {
+          // Case 2: already overlay
+          if (candidate === stripQuery(toProjectFsPath(resolved.id, config.root))) {
+            const basePath = computeBasePathFromOverlay(resolved.id, brand, config.root)
+            if (basePath && fs.existsSync(basePath)) {
+              const resolvedOverlay = await this.resolve(resolved.id, importer, { skipSelf: true, ...options })
+              const resolvedBase = await this.resolve(basePath, importer, { skipSelf: true, ...options })
+              if (resolvedOverlay && resolvedBase) {
+                const isModule = isCssModuleFile(resolved.id)
+                const bridgeId = `\0brand-style-bridge?base=${encodeURIComponent(resolvedBase.id)}&overlay=${encodeURIComponent(resolvedOverlay.id)}&kind=${isModule ? 'module' : 'plain'}`
+                return bridgeId
+              }
+            }
+          } else {
+            // Case 1: base resolves, overlay exists
+            const resolvedOverlay = await this.resolve(candidate, importer, { skipSelf: true, ...options })
+            if (resolvedOverlay) {
+              const isModule = isCssModuleFile(resolved.id)
+              const bridgeId = `\0brand-style-bridge?base=${encodeURIComponent(resolved.id)}&overlay=${encodeURIComponent(resolvedOverlay.id)}&kind=${isModule ? 'module' : 'plain'}`
+              return bridgeId
+            }
           }
-          return resolvedOverlay
         }
+        // Non-style: just swap to overlay
+        const resolvedOverlayNonStyle = await this.resolve(candidate, importer, { skipSelf: true, ...options })
+        if (resolvedOverlayNonStyle) return resolvedOverlayNonStyle.id
       }
 
-      // No overlay; propagate brand for downstream imports and keep brand in id for cache separation
-      const idNoQuery2 = stripQuery(resolved.id)
-      if (!idNoQuery2.startsWith('\0') && !idNoQuery2.startsWith('virtual:')) {
-        return resolved.id + (resolved.id.includes('?') ? '&' : '?') + '__brand=' + encodeURIComponent(brand)
-      }
+      // No overlay; keep resolved as-is
       return resolved
     },
 
@@ -228,6 +263,23 @@ export function brandOverrides(): Plugin {
       if (brandEntryMatch) {
         const b = brandEntryMatch[1]
         return `import '/src/entry-client.tsx?brand=${b}'\n`
+      }
+      if (id.startsWith('\0brand-style-bridge?')) {
+        const q = id.indexOf('?')
+        const sp = new URLSearchParams(id.slice(q + 1))
+        const base = sp.get('base') || ''
+        const overlay = sp.get('overlay') || ''
+        const kind = sp.get('kind') || 'plain'
+        const baseImp = base + (base.includes('?') ? '&' : '?') + '__brand_injected=1'
+        const overlayImp = overlay + (overlay.includes('?') ? '&' : '?') + '__brand_injected=1'
+        if (kind === 'module') {
+          const baseUsed = baseImp + (baseImp.includes('&') ? '&' : '?') + 'used'
+          const overlayUsed = overlayImp + (overlayImp.includes('&') ? '&' : '?') + 'used'
+          return `import baseStyles from '${baseUsed}'\nimport overlayStyles from '${overlayUsed}'\nconst merged = { ...baseStyles }\nfor (const k in overlayStyles) {\n  const baseVal = merged[k]\n  const overVal = overlayStyles[k]\n  merged[k] = baseVal ? (baseVal + ' ' + overVal) : overVal\n}\nexport default merged\n`
+        }
+        const baseUsed = baseImp + (baseImp.includes('&') ? '&' : '?') + 'used'
+        const overlayUsed = overlayImp + (overlayImp.includes('&') ? '&' : '?') + 'used'
+        return `import '${baseUsed}'\nimport '${overlayUsed}'\n`
       }
     },
 

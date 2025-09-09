@@ -1,5 +1,5 @@
 import type { ButtonHTMLAttributes, ReactNode } from 'react'
-import styles from './OverloadButton.module.css'
+import styles from '../../OverloadButton.module.css'
 
 export type OverloadButtonProps = {
   fullWidth?: boolean
