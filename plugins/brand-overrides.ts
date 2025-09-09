@@ -1,4 +1,4 @@
-import type { IndexHtmlTransformContext, Plugin, ResolvedConfig } from 'vite'
+import type { IndexHtmlTransformContext, Plugin, ResolvedConfig, ViteDevServer } from 'vite'
 import fs from 'node:fs'
 import path from 'node:path'
 
@@ -106,6 +106,30 @@ function findBrands(srcRoot: string): Set<BrandName> {
 export function brandOverrides(): Plugin {
   let config: ResolvedConfig
   let knownBrands = new Set<BrandName>()
+  // Caches
+  const pathExistsCache = new Map<string, boolean>()
+  const brandsCacheBySrcRoot = new Map<string, Set<BrandName>>()
+
+  function cachedFindBrands(srcRoot: string): Set<BrandName> {
+    const cached = brandsCacheBySrcRoot.get(srcRoot)
+    if (cached) return new Set(cached)
+    const found = findBrands(srcRoot)
+    brandsCacheBySrcRoot.set(srcRoot, new Set(found))
+    return new Set(found)
+  }
+
+  function invalidateAllCaches(): void {
+    pathExistsCache.clear()
+    brandsCacheBySrcRoot.clear()
+  }
+
+  function pathExistsCached(p: string): boolean {
+    const cached = pathExistsCache.get(p)
+    if (cached !== undefined) return cached
+    const exists = fs.existsSync(p)
+    pathExistsCache.set(p, exists)
+    return exists
+  }
 
   function getBrandForImporter(importer: string | undefined): BrandName | undefined {
     if (!importer) return undefined
@@ -128,7 +152,7 @@ export function brandOverrides(): Plugin {
     config() {
       // Compute dynamic rollup inputs for client and ssr builds based on discovered brands
       const srcRoot = path.resolve(process.cwd(), 'src')
-      const brands = Array.from(findBrands(srcRoot))
+      const brands = Array.from(cachedFindBrands(srcRoot))
 
       const clientInputs: Record<string, string> = {
         main: '/src/entry-client.tsx'
@@ -163,7 +187,29 @@ export function brandOverrides(): Plugin {
     configResolved(resolved) {
       config = resolved
       const srcRoot = path.resolve(config.root, 'src')
-      knownBrands = findBrands(srcRoot)
+      knownBrands = cachedFindBrands(srcRoot)
+    },
+
+    configureServer(server: ViteDevServer) {
+      const srcRoot = path.resolve(server.config.root, 'src')
+      const isUnderSrc = (p: string) => {
+        const abs = path.isAbsolute(p) ? p : path.resolve(server.config.root, p)
+        return abs === srcRoot || abs.startsWith(srcRoot + path.sep)
+      }
+      const maybeInvalidate = (p: string) => {
+        if (!isUnderSrc(p)) return
+        const abs = path.isAbsolute(p) ? p : path.resolve(server.config.root, p)
+        const brandsSeg = path.sep + 'brands' + path.sep
+        if (!abs.includes(brandsSeg)) return
+        // Clear all caches; simple and safe. Recompute known brands.
+        invalidateAllCaches()
+        knownBrands = cachedFindBrands(srcRoot)
+      }
+      server.watcher.on('add', maybeInvalidate)
+      server.watcher.on('change', maybeInvalidate)
+      server.watcher.on('unlink', maybeInvalidate)
+      server.watcher.on('addDir', maybeInvalidate)
+      server.watcher.on('unlinkDir', maybeInvalidate)
     },
 
     // Rewrite client entry in dev based on URL ?brand=...
@@ -222,7 +268,7 @@ export function brandOverrides(): Plugin {
 
       // Compute overlay path
       const candidate = computeOverlayPath(resolved.id, brand, config.root)
-      if (fs.existsSync(candidate)) {
+      if (pathExistsCached(candidate)) {
         // Two cases for additive styles:
         // 1) Import currently resolves to base style and overlay exists → bridge(base, overlay)
         // 2) Import currently resolves to overlay style (already under /brands/<brand>/) → bridge(base-from-overlay, overlay)
@@ -230,7 +276,7 @@ export function brandOverrides(): Plugin {
           // Case 2: already overlay
           if (candidate === stripQuery(toProjectFsPath(resolved.id, config.root))) {
             const basePath = computeBasePathFromOverlay(resolved.id, brand, config.root)
-            if (basePath && fs.existsSync(basePath)) {
+            if (basePath && pathExistsCached(basePath)) {
               const resolvedOverlay = await this.resolve(resolved.id, importer, { skipSelf: true, ...options })
               const resolvedBase = await this.resolve(basePath, importer, { skipSelf: true, ...options })
               if (resolvedOverlay && resolvedBase) {
