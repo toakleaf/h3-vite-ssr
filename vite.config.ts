@@ -2,6 +2,8 @@ import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react-swc'
 import path from 'node:path'
 import { getFrontierEntrypoints } from './plugins/get-frontier-entrypoints'
+import { brandOverrides } from './plugins/brand-overrides'
+
 
 export default defineConfig(({ mode }) => {
   if (mode === 'server-runtime') {
@@ -26,7 +28,7 @@ export default defineConfig(({ mode }) => {
     }
   }
   return {
-    plugins: [react(), getFrontierEntrypoints()],
+    plugins: [brandOverrides(), react(), getFrontierEntrypoints()],
     optimizeDeps: {
       include: ['react', 'react-dom']
     },
@@ -36,16 +38,13 @@ export default defineConfig(({ mode }) => {
         build: {
           outDir: '.output/client',
           manifest: true,
-          ssrManifest: true
+          ssrManifest: true,
         }
       },
       ssr: {
         build: {
           outDir: '.output/server',
           ssr: true,
-          rollupOptions: {
-            input: '/src/entry-server.tsx'
-          }
         }
       }
     }
