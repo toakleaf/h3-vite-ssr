@@ -43,7 +43,7 @@ function isInsideSrc(resolvedId: string, root: string): boolean {
   return abs.startsWith(src + path.sep)
 }
 
-function computeOverlayPath(resolvedFile: string, brand: BrandName, root: string): string {
+function computeOverloadPath(resolvedFile: string, brand: BrandName, root: string): string {
   const idNoQuery = toProjectFsPath(resolvedFile, root)
   const parsed = path.parse(idNoQuery)
   // If the file already lives under a brands/<brand> folder, don't re-add it
@@ -62,7 +62,7 @@ function isCssModuleFile(id: string): boolean {
   return p.includes('.module.') && isStyleFile(p)
 }
 
-function computeBasePathFromOverlay(resolvedFile: string, brand: BrandName, root: string): string | undefined {
+function computeBasePathFromOverload(resolvedFile: string, brand: BrandName, root: string): string | undefined {
   const abs = toProjectFsPath(resolvedFile, root)
   const parsed = path.parse(abs)
   const brandsSegment = path.sep + 'brands' + path.sep + brand
@@ -145,7 +145,7 @@ export function brandOverrides(): Plugin {
     // 1) explicit query on importer id (entry-client?brand=...)
     const fromQuery = tryGetBrandFromId(importer)
     if (fromQuery) return fromQuery
-    // 2) infer from path segment /brands/<brand>/ for overlay importers
+    // 2) infer from path segment /brands/<brand>/ for overload importers
     const importerPath = stripQuery(normalizeFsPath(importer))
     for (const b of knownBrands) {
       const seg = path.sep + 'brands' + path.sep + b + path.sep
@@ -275,45 +275,45 @@ export function brandOverrides(): Plugin {
       // Only brand-swap modules under src
       if (!isInsideSrc(resolved.id, config.root)) return resolved
 
-      // Compute overlay path
-      const candidate = computeOverlayPath(resolved.id, brand, config.root)
+      // Compute overload path
+      const candidate = computeOverloadPath(resolved.id, brand, config.root)
       if (pathExistsCached(candidate)) {
         // Two cases for additive styles:
-        // 1) Import currently resolves to base style and overlay exists → bridge(base, overlay)
-        // 2) Import currently resolves to overlay style (already under /brands/<brand>/) → bridge(base-from-overlay, overlay)
+        // 1) Import currently resolves to base style and overload exists → bridge(base, overload)
+        // 2) Import currently resolves to overload style (already under /brands/<brand>/) → bridge(base-from-overload, overload)
         if (isStyleFile(resolved.id)) {
-          // Case 2: already overlay
+          // Case 2: already overload
           if (candidate === stripQuery(toProjectFsPath(resolved.id, config.root))) {
-            const basePath = computeBasePathFromOverlay(resolved.id, brand, config.root)
+            const basePath = computeBasePathFromOverload(resolved.id, brand, config.root)
             if (basePath && pathExistsCached(basePath)) {
-              const resolvedOverlay = await this.resolve(resolved.id, importer, { skipSelf: true, ...options })
+              const resolvedOverload = await this.resolve(resolved.id, importer, { skipSelf: true, ...options })
               const resolvedBase = await this.resolve(basePath, importer, { skipSelf: true, ...options })
-              if (resolvedOverlay && resolvedBase) {
+              if (resolvedOverload && resolvedBase) {
                 const isModule = isCssModuleFile(resolved.id)
                 const brandedBase = ensureBrandOnId(resolvedBase.id, brand)
-                const brandedOverlay = ensureBrandOnId(resolvedOverlay.id, brand)
-                const bridgeId = `\0brand-style-bridge?base=${encodeURIComponent(brandedBase)}&overlay=${encodeURIComponent(brandedOverlay)}&kind=${isModule ? 'module' : 'plain'}`
+                const brandedOverload = ensureBrandOnId(resolvedOverload.id, brand)
+                const bridgeId = `\0brand-style-bridge?base=${encodeURIComponent(brandedBase)}&overload=${encodeURIComponent(brandedOverload)}&kind=${isModule ? 'module' : 'plain'}`
                 return bridgeId
               }
             }
           } else {
-            // Case 1: base resolves, overlay exists
-            const resolvedOverlay = await this.resolve(candidate, importer, { skipSelf: true, ...options })
-            if (resolvedOverlay) {
+            // Case 1: base resolves, overload exists
+            const resolvedOverload = await this.resolve(candidate, importer, { skipSelf: true, ...options })
+            if (resolvedOverload) {
               const isModule = isCssModuleFile(resolved.id)
               const brandedBase = ensureBrandOnId(resolved.id, brand)
-              const brandedOverlay = ensureBrandOnId(resolvedOverlay.id, brand)
-              const bridgeId = `\0brand-style-bridge?base=${encodeURIComponent(brandedBase)}&overlay=${encodeURIComponent(brandedOverlay)}&kind=${isModule ? 'module' : 'plain'}`
+              const brandedOverload = ensureBrandOnId(resolvedOverload.id, brand)
+              const bridgeId = `\0brand-style-bridge?base=${encodeURIComponent(brandedBase)}&overload=${encodeURIComponent(brandedOverload)}&kind=${isModule ? 'module' : 'plain'}`
               return bridgeId
             }
           }
         }
-        // Non-style: just swap to overlay
-        const resolvedOverlayNonStyle = await this.resolve(candidate, importer, { skipSelf: true, ...options })
-        if (resolvedOverlayNonStyle) return ensureBrandOnId(resolvedOverlayNonStyle.id, brand)
+        // Non-style: just swap to overload
+        const resolvedOverloadNonStyle = await this.resolve(candidate, importer, { skipSelf: true, ...options })
+        if (resolvedOverloadNonStyle) return ensureBrandOnId(resolvedOverloadNonStyle.id, brand)
       }
 
-      // No overlay; keep resolved as-is
+      // No overload; keep resolved as-is
       return ensureBrandOnId(resolved.id, brand)
     },
 
@@ -327,18 +327,18 @@ export function brandOverrides(): Plugin {
         const q = id.indexOf('?')
         const sp = new URLSearchParams(id.slice(q + 1))
         const base = sp.get('base') || ''
-        const overlay = sp.get('overlay') || ''
+        const overload = sp.get('overload') || ''
         const kind = sp.get('kind') || 'plain'
         const baseImp = base + (base.includes('?') ? '&' : '?') + '__brand_injected=1'
-        const overlayImp = overlay + (overlay.includes('?') ? '&' : '?') + '__brand_injected=1'
+        const overloadImp = overload + (overload.includes('?') ? '&' : '?') + '__brand_injected=1'
         if (kind === 'module') {
           const baseUsed = baseImp + (baseImp.includes('&') ? '&' : '?') + 'used'
-          const overlayUsed = overlayImp + (overlayImp.includes('&') ? '&' : '?') + 'used'
-          return `import baseStyles from '${baseUsed}'\nimport overlayStyles from '${overlayUsed}'\nconst merged = { ...baseStyles }\nfor (const k in overlayStyles) {\n  const baseVal = merged[k]\n  const overVal = overlayStyles[k]\n  merged[k] = baseVal ? (baseVal + ' ' + overVal) : overVal\n}\nexport default merged\n`
+          const overloadUsed = overloadImp + (overloadImp.includes('&') ? '&' : '?') + 'used'
+          return `import baseStyles from '${baseUsed}'\nimport overloadStyles from '${overloadUsed}'\nconst merged = { ...baseStyles }\nfor (const k in overloadStyles) {\n  const baseVal = merged[k]\n  const overVal = overloadStyles[k]\n  merged[k] = baseVal ? (baseVal + ' ' + overVal) : overVal\n}\nexport default merged\n`
         }
         const baseUsed = baseImp + (baseImp.includes('&') ? '&' : '?') + 'used'
-        const overlayUsed = overlayImp + (overlayImp.includes('&') ? '&' : '?') + 'used'
-        return `import '${baseUsed}'\nimport '${overlayUsed}'\n`
+        const overloadUsed = overloadImp + (overloadImp.includes('&') ? '&' : '?') + 'used'
+        return `import '${baseUsed}'\nimport '${overloadUsed}'\n`
       }
     },
 

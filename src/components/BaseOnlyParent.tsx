@@ -1,9 +1,9 @@
-import { OverlayLeaf } from './OverlayLeaf'
+import { OverloadLeaf } from './OverloadLeaf'
 
 export function BaseOnlyParent() {
   return (
     <div id="base-only-parent">
-      <OverlayLeaf />
+      <OverloadLeaf />
     </div>
   )
 }
