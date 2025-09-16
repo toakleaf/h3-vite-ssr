@@ -1,6 +1,7 @@
 import { useState, Suspense, lazy } from 'react'
 import { OverloadButton } from './components/OverloadButton'
 import { NothingSpecial } from './components/NothingSpecial'
+import { BaseOnlyParent } from './components/BaseOnlyParent'
 import reactLogo from './assets/react.svg'
 import viteLogo from '/vite.svg'
 import './App.css'
@@ -46,6 +47,7 @@ function App() {
         Click on the Vite and React logos to learn more
       </p>
       <NothingSpecial />
+      <BaseOnlyParent />
     </>
   )
 }

@@ -17,6 +17,15 @@ function tryGetBrandFromId(id: string): BrandName | undefined {
   return brand || undefined
 }
 
+function ensureBrandOnId(id: string, brand: BrandName): string {
+  if (!brand) return id
+  const qIndex = id.indexOf('?')
+  if (qIndex === -1) return id + `?brand=${encodeURIComponent(brand)}`
+  const sp = new URLSearchParams(id.slice(qIndex + 1))
+  if (sp.get('brand') || sp.get('__brand')) return id
+  return id + `&brand=${encodeURIComponent(brand)}`
+}
+
 function normalizeFsPath(p: string): string {
   if (p.startsWith('/@fs/')) return p.slice('/@fs'.length)
   return p
@@ -281,7 +290,9 @@ export function brandOverrides(): Plugin {
               const resolvedBase = await this.resolve(basePath, importer, { skipSelf: true, ...options })
               if (resolvedOverlay && resolvedBase) {
                 const isModule = isCssModuleFile(resolved.id)
-                const bridgeId = `\0brand-style-bridge?base=${encodeURIComponent(resolvedBase.id)}&overlay=${encodeURIComponent(resolvedOverlay.id)}&kind=${isModule ? 'module' : 'plain'}`
+                const brandedBase = ensureBrandOnId(resolvedBase.id, brand)
+                const brandedOverlay = ensureBrandOnId(resolvedOverlay.id, brand)
+                const bridgeId = `\0brand-style-bridge?base=${encodeURIComponent(brandedBase)}&overlay=${encodeURIComponent(brandedOverlay)}&kind=${isModule ? 'module' : 'plain'}`
                 return bridgeId
               }
             }
@@ -290,18 +301,20 @@ export function brandOverrides(): Plugin {
             const resolvedOverlay = await this.resolve(candidate, importer, { skipSelf: true, ...options })
             if (resolvedOverlay) {
               const isModule = isCssModuleFile(resolved.id)
-              const bridgeId = `\0brand-style-bridge?base=${encodeURIComponent(resolved.id)}&overlay=${encodeURIComponent(resolvedOverlay.id)}&kind=${isModule ? 'module' : 'plain'}`
+              const brandedBase = ensureBrandOnId(resolved.id, brand)
+              const brandedOverlay = ensureBrandOnId(resolvedOverlay.id, brand)
+              const bridgeId = `\0brand-style-bridge?base=${encodeURIComponent(brandedBase)}&overlay=${encodeURIComponent(brandedOverlay)}&kind=${isModule ? 'module' : 'plain'}`
               return bridgeId
             }
           }
         }
         // Non-style: just swap to overlay
         const resolvedOverlayNonStyle = await this.resolve(candidate, importer, { skipSelf: true, ...options })
-        if (resolvedOverlayNonStyle) return resolvedOverlayNonStyle.id
+        if (resolvedOverlayNonStyle) return ensureBrandOnId(resolvedOverlayNonStyle.id, brand)
       }
 
       // No overlay; keep resolved as-is
-      return resolved
+      return ensureBrandOnId(resolved.id, brand)
     },
 
     load(id) {

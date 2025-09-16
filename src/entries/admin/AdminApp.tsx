@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { OverloadButton } from '../../components/OverloadButton'
 import { NothingSpecial } from '../../components/NothingSpecial'
+import { BaseOnlyParent } from '../../components/BaseOnlyParent'
 
 export default function AdminApp() {
   const [count, setCount] = useState(0)
@@ -11,6 +12,7 @@ export default function AdminApp() {
       <button onClick={() => setCount((c) => c + 1)}>Clicks: {count}</button>
       <OverloadButton />
       <NothingSpecial />
+      <BaseOnlyParent />
     </div>
   )
 }
